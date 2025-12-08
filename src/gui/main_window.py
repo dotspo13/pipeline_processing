@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
 
     def _create_library_dock(self):
         self.library_dock = QDockWidget("Library", self)
+        self.library_dock.setFeatures(QDockWidget.NoDockWidgetFeatures)
         self.library_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         self.library_list = QListWidget()
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
 
     def _create_properties_dock(self):
         self.properties_dock = QDockWidget("Properties", self)
+        self.properties_dock.setFeatures(QDockWidget.NoDockWidgetFeatures)
         self.properties_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         self.properties_widget = PropertiesWidget()
@@ -66,6 +68,7 @@ class MainWindow(QMainWindow):
 
     def _create_logs_dock(self):
         self.logs_dock = QDockWidget("Logs", self)
+        self.logs_dock.setFeatures(QDockWidget.NoDockWidgetFeatures)
         self.logs_dock.setAllowedAreas(Qt.BottomDockWidgetArea)
         
         self.log_output = QTextEdit()

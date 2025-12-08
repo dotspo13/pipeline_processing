@@ -1,5 +1,5 @@
 import uuid
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QMenu
 from PySide6.QtCore import Qt, Signal, QPointF
 from PySide6.QtGui import QPainter, QTransform, QWheelEvent, QMouseEvent
 from .graphics_items import NodeItem, EdgeItem, PortItem
@@ -27,7 +27,7 @@ class NodeEditorWidget(QGraphicsView):
 
     def add_node(self, node_type, pos=None):
         node_id = str(uuid.uuid4())
-        node = NodeItem(node_type, node_id)
+        node = NodeItem(node_type, node_id, self)
         
         if pos:
             node.setPos(pos)
@@ -134,4 +134,18 @@ class NodeEditorWidget(QGraphicsView):
         self.nodes = {}
         self.edges = []
 
+    def remove_node(self, node):
+        # 1. Удалить все связи ноды
+        for port in node.inputs + node.outputs:
+            for edge in self.edges:
+                if edge.target_port == port or edge.source_port == port:
+                    self.scene.removeItem(edge)
+                    self.edges.remove(edge)
+            self.scene.removeItem(port)
 
+
+
+        # 2. Удалить графический объект ноды
+        if node.node_id in self.nodes:
+            self.scene.removeItem(self.nodes[node.node_id])
+            self.nodes.pop(node.node_id)
