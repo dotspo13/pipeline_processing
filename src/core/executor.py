@@ -2,6 +2,8 @@ from concurrent.futures._base import Future
 
 
 import time
+import io
+import contextlib
 import concurrent.futures
 import multiprocessing
 from typing import Dict, Any, List, Optional, Set
@@ -17,7 +19,7 @@ class Executor:
         self.max_workers = max_workers or multiprocessing.cpu_count()
         self.timeout = timeout
         self.input_queues: Dict[str, Dict[str, deque]] = defaultdict[str, Dict[str, deque]](lambda: defaultdict(deque))   
-        self.active_tasks: Set[concurrent.futures.Future] = set[Future]()
+        self.active_tasks: Set[concurrent.futures.Future] = set()
         self.future_to_node: Dict[concurrent.futures.Future, str] = {}
         self._executed_sources: Set[str] = set()
 
@@ -41,7 +43,7 @@ class Executor:
             inputs = {}
             is_ready = True
             
-            required_inputs = node.INPUT_TYPES.keys()
+            required_inputs = set(node.INPUT_TYPES.keys())
             connected_inputs = set()
             
             incoming_links = self.graph.get_incoming_links(node_id)
@@ -66,11 +68,14 @@ class Executor:
                 else:
                     is_ready = False
             else:
+                # Все обязательные входы должны быть подключены и иметь данные
                 for port in required_inputs:
-                    if port in connected_inputs:
-                        if not self.input_queues[node_id][port]:
-                            is_ready = False
-                            break
+                    if port not in connected_inputs:
+                        is_ready = False
+                        break
+                    if not self.input_queues[node_id][port]:
+                        is_ready = False
+                        break
             
             if is_ready:
                 node_inputs = {}
@@ -108,11 +113,13 @@ class Executor:
                         node_id = self.future_to_node.pop(future)
                         
                         try:
-                            result_data, updated_node = future.result()
+                            result_data, updated_node, captured_logs = future.result()
                             
                             self.graph.nodes[node_id] = updated_node
                             
                             if status_callback: status_callback(node_id, "completed")
+                            if captured_logs:
+                                print(captured_logs, end="" if captured_logs.endswith("\n") else "\n")
                             self._distribute_outputs(node_id, result_data)
                         except Exception as e:
                             if status_callback: status_callback(node_id, "error")
@@ -165,6 +172,13 @@ def _execute_node_wrapper(node, inputs):
     """
     Функция-обертка для запуска в отдельном процессе.
     """
-    time.sleep(3.0)
-    return node.execute(**inputs), node
+    buffer = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buffer):
+            result = node.execute(**inputs)
+        logs = buffer.getvalue()
+        return result, node, logs
+    except Exception as exc:
+        logs = buffer.getvalue()
+        raise Exception(f"{exc}\nCaptured logs:\n{logs}") from exc
 
