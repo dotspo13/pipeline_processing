@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QDockWidget, QListWidget, QPushButton, QTextEdit, 
                                QMessageBox, QSplitter)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QTextCursor
 from .editor_widget import NodeEditorWidget
 from .properties_widget import PropertiesWidget
 from core.executor import Executor
@@ -23,10 +24,14 @@ class MainWindow(QMainWindow):
         self.exec_signals = ExecutionSignals()
         self.exec_signals.status_changed.connect(self._on_node_status_changed)
 
-        # Перенаправление stdout
+        # Перенаправление stdout / stderr в логовую панель
         self.redirector = StreamRedirector(sys.stdout)
-        self.redirector.messageWritten.connect(self._on_stdout_message)
+        self.redirector.messageWritten.connect(self._on_stdout_message, Qt.QueuedConnection)
         sys.stdout = self.redirector
+
+        self.stderr_redirector = StreamRedirector(sys.stderr)
+        self.stderr_redirector.messageWritten.connect(self._on_stdout_message, Qt.QueuedConnection)
+        sys.stderr = self.stderr_redirector
 
         # Центральный виджет - Редактор графа
         self.editor = NodeEditorWidget(self)
@@ -114,9 +119,12 @@ class MainWindow(QMainWindow):
             node_item.set_status(status)
 
     def _on_stdout_message(self, text):
-        self.log_output.moveCursor(self.log_output.textCursor().End)
+        if not text:
+            return
+        self.log_output.moveCursor(QTextCursor.End)
         self.log_output.insertPlainText(text)
-        self.log_output.moveCursor(self.log_output.textCursor().End)
+        self.log_output.moveCursor(QTextCursor.End)
+        self.log_output.ensureCursorVisible()
 
     def log(self, message):
         print(f"[{time.strftime('%H:%M:%S')}] {message}")
