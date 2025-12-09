@@ -92,3 +92,12 @@ class Graph:
     def get_outgoing_links(self, node_id: str) -> List[Dict[str, str]]:
         return self.adj_list.get(node_id, [])
 
+    def remove_node(self, node_id):
+        node = self.nodes.pop(node_id, None)
+        if node:
+            for port in node.ports.values():
+                node.parent_graph.disconnect_port_edges(port)
+            return True
+        return False
+
+

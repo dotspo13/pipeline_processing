@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QGraphicsTextItem, QMenu
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QObject
 from PySide6.QtGui import QBrush, QPen, QPainter, QPainterPath, QColor, QFont
 from nodes.image_nodes import NODE_REGISTRY
@@ -30,11 +30,12 @@ class PortItem(QGraphicsItem):
         painter.drawEllipse(-self.radius, -self.radius, 2*self.radius, 2*self.radius)
 
 class NodeItem(QGraphicsItem):
-    def __init__(self, node_type, node_id, params=None):
+    def __init__(self, node_type, node_id, scene, params=None):
         super().__init__()
         self.node_type = node_type
         self.node_id = node_id
         self.params = params or {}
+        self.scene = scene
         
         self.width = 150
         self.height = 100 # Будет пересчитано
@@ -139,6 +140,18 @@ class NodeItem(QGraphicsItem):
             # или нужно вызывать update() для них.
             pass
         return super().itemChange(change, value)
+
+    def contextMenuEvent(self, event):
+        menu = QMenu()
+
+        delete_action = menu.addAction("Delete node")
+
+        action = menu.exec(event.screenPos())
+
+        if action == delete_action:
+            self.scene.remove_node(self)
+
+        event.accept()
 
 class EdgeItem(QGraphicsPathItem):
     def __init__(self, source_port, target_port):
