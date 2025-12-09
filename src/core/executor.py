@@ -57,16 +57,11 @@ class Executor:
                 continue
             
             if getattr(node, 'INPUT_STRATEGY', 'ALL') == "ANY":
-                has_any_data = False
-                for port in connected_inputs:
-                    if self.input_queues[node_id][port]:
-                        has_any_data = True
-                        break
-                
-                if has_any_data:
-                    is_ready = True
-                else:
-                    is_ready = False
+                # Для стратегии ANY используем подключенные входы, а если их нет (например, данные поданы initial_inputs),
+                # то рассматриваем все объявленные входы.
+                candidate_ports = connected_inputs if connected_inputs else required_inputs
+                has_any_data = any(self.input_queues[node_id][port] for port in candidate_ports)
+                is_ready = has_any_data
             else:
                 # Все обязательные входы должны быть подключены и иметь данные
                 for port in required_inputs:
@@ -81,6 +76,8 @@ class Executor:
                 node_inputs = {}
                 
                 ports_to_check = connected_inputs if getattr(node, 'INPUT_STRATEGY', 'ALL') == "ANY" else required_inputs
+                if getattr(node, 'INPUT_STRATEGY', 'ALL') == "ANY" and not ports_to_check:
+                    ports_to_check = required_inputs
                 
                 for port in ports_to_check:
                     if port in self.input_queues[node_id] and self.input_queues[node_id][port]:
