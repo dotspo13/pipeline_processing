@@ -3,3 +3,6 @@ scikit-image
 pytest
 numpy
 PySide6
+mkdocs
+mkdocs-material
+mkdocstrings[python]
