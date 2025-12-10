@@ -87,7 +87,6 @@ class AnyNode(Node):
 
     def execute(self, **inputs):
         self.calls.append(set(inputs.keys()))
-        # Sum all provided inputs (could be one or both)
         return {"out": sum(inputs.values()) if inputs else 0}
 
 
@@ -236,8 +235,7 @@ def test_input_strategy_any_executes_on_any_port():
     graph = build_graph(graph_data)
     executor = Executor(graph, max_workers=1, timeout=5)
 
-    # Подаём оба входа сразу, чтобы ANY получила данные на обоих портах.
-    executor.run(initial_inputs={"any": {"a": 1, "b": 2}})
+    executor.run(initial_inputs={"any": {"b": 2}})
 
     any_node = graph.get_node("any")
     sink = graph.get_node("sink")
@@ -260,8 +258,6 @@ def test_errors_from_nodes_stop_downstream_and_are_logged(capsys):
         ],
     }
 
-    # The failing node has no outputs; link is intentionally invalid but should
-    # be caught at graph validation time. Remove the bad link and test runtime error.
     graph_data["links"].pop()
     graph_data["links"].append(
         {"from_node": "src", "from_output": "out", "to_node": "fail", "to_input": "x"}
@@ -276,7 +272,6 @@ def test_errors_from_nodes_stop_downstream_and_are_logged(capsys):
     failing = graph.get_node("fail")
     sink = graph.get_node("sink")
 
-    # Downstream must not run; error should be surfaced.
     assert sink.executed is False
     assert "Error executing node" in out
 
@@ -292,7 +287,6 @@ def test_deadlock_detection_when_data_waits_without_ready_nodes(capsys):
     graph = build_graph(graph_data)
     executor = Executor(graph, max_workers=1, timeout=0.2)
 
-    # Feed data to an unconnected required input so the system has pending data but no ready nodes.
     executor.run(initial_inputs={"lonely": {"value": 123}})
 
     out, err = capsys.readouterr()
@@ -317,7 +311,6 @@ def test_concurrent_ready_nodes_with_limited_workers():
     }
 
     graph = build_graph(graph_data)
-    # With 2 workers, three ~0.3s tasks should finish notably under 0.9s if there is concurrency.
     executor = Executor(graph, max_workers=2, timeout=3)
 
     start = time.time()
@@ -327,27 +320,26 @@ def test_concurrent_ready_nodes_with_limited_workers():
     sink = graph.get_node("sink")
     sources_executed = [graph.get_node(x).executed for x in ("s1", "s2", "s3")]
 
-    # All sources should have run.
     assert all(sources_executed)
-    # Sink should receive at least as many values as sources (tolerate flakiness in process pool).
+
     assert len(sink.values) >= 2
-    # There must be evidence of concurrency (significantly less than serial 0.9s).
+
     assert elapsed < 0.9
 
 
 def test_graph_validation_errors():
-    # Type mismatch should raise
+
     bad_type_graph = {
         "nodes": [
             {"id": "src", "type": "Source", "params": {}},
             {"id": "sink", "type": "Sink", "params": {}},
         ],
         "links": [
-            {"from_node": "src", "from_output": "out", "to_node": "sink", "to_input": "value"},  # ok
+            {"from_node": "src", "from_output": "out", "to_node": "sink", "to_input": "value"},  
         ],
     }
     graph = Graph(TEST_NODE_REGISTRY)
-    graph.load_from_json(bad_type_graph)  # this one is fine
+    graph.load_from_json(bad_type_graph) 
 
     mismatch_graph = {
         "nodes": [
@@ -355,11 +347,11 @@ def test_graph_validation_errors():
             {"id": "any", "type": "AnyNode", "params": {}},
         ],
         "links": [
-            {"from_node": "src", "from_output": "out", "to_node": "any", "to_input": "a"},  # int->int ok
-            {"from_node": "src", "from_output": "out", "to_node": "any", "to_input": "b"},  # ok
+            {"from_node": "src", "from_output": "out", "to_node": "any", "to_input": "a"},  
+            {"from_node": "src", "from_output": "out", "to_node": "any", "to_input": "b"},  
         ],
     }
-    Graph(TEST_NODE_REGISTRY).load_from_json(mismatch_graph)  # ok
+    Graph(TEST_NODE_REGISTRY).load_from_json(mismatch_graph)  
 
     missing_node_graph = {
         "nodes": [{"id": "src", "type": "Source", "params": {}}],
