@@ -1,7 +1,7 @@
 import uuid
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QMenu
 from PySide6.QtCore import Qt, Signal, QPointF
-from PySide6.QtGui import QPainter, QTransform, QWheelEvent, QMouseEvent
+from PySide6.QtGui import QPainter, QTransform, QWheelEvent, QMouseEvent, QPen, QColor
 from .graphics_items import NodeItem, EdgeItem, PortItem
 
 class NodeEditorWidget(QGraphicsView):
@@ -23,6 +23,7 @@ class NodeEditorWidget(QGraphicsView):
         
         # Логика соединения
         self.temp_edge = None
+        self.temp_edge_line = None
         self.start_port = None
 
     def add_node(self, node_type, pos=None):
@@ -52,40 +53,58 @@ class NodeEditorWidget(QGraphicsView):
         self.scale(zoom_factor, zoom_factor)
 
     # Обработка создания связей
-    # Для простоты перехватываем mousePress на сцене через view, 
-    # но лучше это делать в itemChange или mousePressEvent айтемов.
-    # Но так как PortItem - дочерний элемент NodeItem, с событиями может быть возня.
-    # Сделаем простую реализацию:
-    
+
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             item = self.itemAt(event.pos())
             if isinstance(item, PortItem):
                 self.start_port = item
                 self.setDragMode(QGraphicsView.NoDrag)
-                return # Не передаем событие дальше (чтобы не драгать сцену)
-                
+                # создаем временную линию
+                start_pos = item.scenePos()
+                self.temp_edge_line = self.scene.addLine(start_pos.x(), start_pos.y(),
+                                                         start_pos.x(), start_pos.y())
+
+                self.temp_edge_line = self.scene.addLine(start_pos.x(), start_pos.y(),
+                                                         start_pos.x(), start_pos.y())
+
+                pen = QPen(QColor("white"))
+                pen.setWidth(2)
+                pen.setCosmetic(True)  # толщина не зависит от zoom
+                self.temp_edge_line.setPen(pen)
+
+                return
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        if self.start_port:
-            # Рисуем временную линию
-            pass 
-            # TODO: Рисовать резиновую линию (QGraphicsLineItem)
+        if self.start_port and self.temp_edge_line:
+            # Начало — позиция порта
+            start = self.start_port.scenePos()
+
+            # Конец — позиция мыши (в координатах сцены)
+            end = self.mapToScene(event.pos())
+
+            self.temp_edge_line.setLine(start.x(), start.y(), end.x(), end.y())
+
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if self.start_port:
+
+            # Удаляем временную линию
+            if self.temp_edge_line:
+                self.scene.removeItem(self.temp_edge_line)
+                self.temp_edge_line = None
+
             item = self.itemAt(event.pos())
             if isinstance(item, PortItem) and item != self.start_port:
-                # Проверяем валидность (output -> input)
+                # Проверяем валидность: output → input
                 if self.start_port.is_output != item.is_output:
-                    # Нормализуем source/target
                     source = self.start_port if self.start_port.is_output else item
                     target = item if self.start_port.is_output else self.start_port
-                    
                     self.add_edge(source, target)
-            
+
             self.start_port = None
             self.setDragMode(QGraphicsView.ScrollHandDrag)
             return
@@ -93,8 +112,7 @@ class NodeEditorWidget(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def add_edge(self, source_port, target_port):
-        # Удаляем существующие связи в этот вход (один ко многим для выхода, но один к одному для входа?)
-        # В нашем движке нет ограничения, но обычно вход принимает одно значение.
+        # Удаляем существующие связи в этот вход
         # Проверим существующие связи
         for edge in self.edges[:]:
             if edge.target_port == target_port:
