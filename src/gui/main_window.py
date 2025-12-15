@@ -1,6 +1,7 @@
+import json
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                                QDockWidget, QListWidget, QPushButton, QTextEdit, 
-                               QMessageBox, QSplitter)
+                               QMessageBox, QSplitter, QFileDialog)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
 from .editor_widget import NodeEditorWidget
@@ -85,11 +86,43 @@ class MainWindow(QMainWindow):
     def _create_toolbar(self):
         toolbar = self.addToolBar("Main Toolbar")
         
+        save_action = toolbar.addAction("Save Graph")
+        save_action.triggered.connect(self._save_graph_to_file)
+
+        load_action = toolbar.addAction("Load Graph")
+        load_action.triggered.connect(self._load_graph_from_file)
+
+        toolbar.addSeparator()
+
         run_action = toolbar.addAction("Run Pipeline")
         run_action.triggered.connect(self._run_pipeline)
         
         clear_action = toolbar.addAction("Clear Graph")
         clear_action.triggered.connect(self.editor.clear)
+
+    def _save_graph_to_file(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Graph", "", "JSON Files (*.json)")
+        if file_path:
+            graph_data = self.editor.serialize_graph()
+            try:
+                with open(file_path, 'w') as f:
+                    json.dump(graph_data, f, indent=4)
+                self.log(f"Graph saved to {file_path}")
+            except Exception as e:
+                self.log(f"Error saving graph: {e}")
+                QMessageBox.critical(self, "Save Error", str(e))
+
+    def _load_graph_from_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Load Graph", "", "JSON Files (*.json)")
+        if file_path:
+            try:
+                with open(file_path, 'r') as f:
+                    graph_data = json.load(f)
+                self.editor.load_graph_from_data(graph_data)
+                self.log(f"Graph loaded from {file_path}")
+            except Exception as e:
+                self.log(f"Error loading graph: {e}")
+                QMessageBox.critical(self, "Load Error", str(e))
 
     def _on_library_item_dbl_click(self, item):
         node_type = item.text()
