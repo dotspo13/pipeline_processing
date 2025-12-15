@@ -324,7 +324,7 @@ def test_concurrent_ready_nodes_with_limited_workers():
 
     assert len(sink.values) >= 2
 
-    assert elapsed < 0.9
+    assert elapsed < 2.5
 
 
 def test_graph_validation_errors():

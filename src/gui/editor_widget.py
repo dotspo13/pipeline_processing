@@ -101,9 +101,33 @@ class NodeEditorWidget(QGraphicsView):
             if isinstance(item, PortItem) and item != self.start_port:
                 # Проверяем валидность: output → input
                 if self.start_port.is_output != item.is_output:
-                    source = self.start_port if self.start_port.is_output else item
-                    target = item if self.start_port.is_output else self.start_port
-                    self.add_edge(source, target)
+                    # Проверка совместимости типов
+                    source_port = self.start_port if self.start_port.is_output else item
+                    target_port = item if self.start_port.is_output else self.start_port
+                    
+                    # Простая проверка типов: "Any" совместим со всем, иначе типы должны совпадать
+                    # Добавляем поддержку Union типов через символ '|'
+                    
+                    def types_compatible(source, target):
+                        if source == "Any" or target == "Any":
+                            return True
+                        
+                        source_types = source.split('|')
+                        target_types = target.split('|')
+                        
+                        # Проверяем, есть ли пересечение множеств типов
+                        for s_t in source_types:
+                            for t_t in target_types:
+                                if s_t == t_t:
+                                    return True
+                        return False
+
+                    if types_compatible(source_port.port_type, target_port.port_type):
+                        self.add_edge(source_port, target_port)
+                    else:
+                        print(f"Type mismatch: cannot connect {source_port.port_type} to {target_port.port_type}")
+                        # Можно добавить визуальную индикацию ошибки (например, мигание красным),
+                        # но пока достаточно не создавать связь.
 
             self.start_port = None
             self.setDragMode(QGraphicsView.ScrollHandDrag)
@@ -131,10 +155,13 @@ class NodeEditorWidget(QGraphicsView):
         graph_data = {"nodes": [], "links": []}
         
         for node_id, node_item in self.nodes.items():
+            pos = node_item.scenePos()
             graph_data["nodes"].append({
                 "id": node_id,
                 "type": node_item.node_type,
-                "params": node_item.params
+                "params": node_item.params,
+                "x": pos.x(),
+                "y": pos.y()
             })
             
         for edge in self.edges:
@@ -146,6 +173,52 @@ class NodeEditorWidget(QGraphicsView):
             })
             
         return graph_data
+
+    def load_graph_from_data(self, graph_data):
+        self.clear()
+        
+        # 1. Create nodes
+        for node_data in graph_data.get("nodes", []):
+            node_id = node_data["id"]
+            node_type = node_data["type"]
+            params = node_data.get("params", {})
+            x = node_data.get("x", 0.0)
+            y = node_data.get("y", 0.0)
+            
+            # Using internal method to avoid generating new UUID
+            node = NodeItem(node_type, node_id, self, params)
+            node.setPos(x, y)
+            self.scene.addItem(node)
+            self.nodes[node_id] = node
+            
+        # 2. Create links
+        for link_data in graph_data.get("links", []):
+            from_node_id = link_data["from_node"]
+            from_output = link_data["from_output"]
+            to_node_id = link_data["to_node"]
+            to_input = link_data["to_input"]
+            
+            if from_node_id not in self.nodes or to_node_id not in self.nodes:
+                continue
+                
+            source_node = self.nodes[from_node_id]
+            target_node = self.nodes[to_node_id]
+            
+            source_port = None
+            target_port = None
+            
+            for port in source_node.outputs:
+                if port.name == from_output:
+                    source_port = port
+                    break
+                    
+            for port in target_node.inputs:
+                if port.name == to_input:
+                    target_port = port
+                    break
+            
+            if source_port and target_port:
+                self.add_edge(source_port, target_port)
 
     def clear(self):
         self.scene.clear()

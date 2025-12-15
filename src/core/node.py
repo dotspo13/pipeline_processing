@@ -23,7 +23,13 @@ class Node(ABC):
     def _validate_params(self):
         """Проверяет, что переданные параметры соответствуют описанию PARAMETERS."""
         for param_name, param_type in self.PARAMETERS.items():
-            pass
+            if param_name in self.params:
+                value = self.params[param_name]
+                if param_type is not Any and not isinstance(value, param_type):
+                    try:
+                        self.params[param_name] = param_type(value)
+                    except (ValueError, TypeError):
+                        raise TypeError(f"Parameter '{param_name}' must be of type {param_type.__name__}, got {type(value).__name__}")
 
     @abstractmethod
     def execute(self, **inputs) -> Dict[str, Any]:

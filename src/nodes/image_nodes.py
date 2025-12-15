@@ -152,8 +152,8 @@ class CollectImages(Node):
     Входы имеют тип Any, чтобы поддерживать и Image, и List[Image].
     """
     INPUT_TYPES = {
-        "input_1": "Any", 
-        "input_2": "Any"
+        "input_1": "Image|List[Image]", 
+        "input_2": "Image|List[Image]"
     }
     OUTPUT_TYPES = {"images": "List[Image]"}
     PARAMETERS = {}
@@ -183,7 +183,7 @@ class LoopMerge(Node):
     - Останавливается после заданного количества итераций.
     """
     INPUT_TYPES = {"initial": "Any", "loop_back": "Any"}
-    OUTPUT_TYPES = {"value": "Any"}
+    OUTPUT_TYPES = {"value": "Any", "final_value": "Any"}
     PARAMETERS = {"iterations": int}
     INPUT_STRATEGY = "ANY"
 
@@ -200,6 +200,18 @@ class LoopMerge(Node):
             
         if self.iteration >= max_iters:
             print(f"LoopMerge: Max iterations ({max_iters}) reached. Stopping propagation.")
+            # Если итерации закончились, мы можем (опционально) ничего не возвращать, 
+            # или вернуть что-то специфичное. 
+            # Но логика "остановить propagation" означает вернуть пустой dict, 
+            # чтобы следующие ноды не получили данных.
+            # Если же мы хотим "final_value" выдать именно В КОНЦЕ, то это сложнее,
+            # так как "конец" для LoopMerge наступает, когда он решает больше не выдавать "value".
+            # В этот момент он может выдать "final_value".
+            
+            # Предположим, что последние данные пришли в 'loop_back' на предыдущем шаге.
+            # Но здесь у нас stateless execute.
+            # Нам нужно понять, что это "последний раз".
+            
             return {}
 
         val = None
@@ -212,6 +224,12 @@ class LoopMerge(Node):
             print(f"LoopMerge: Loop pass (iter {self.iteration + 1}/{max_iters})")
              
         self.iteration += 1
+        
+        # Если это последняя итерация
+        if self.iteration == max_iters:
+             print("LoopMerge: Final iteration reached, outputting to final_value")
+             return {"value": val, "final_value": val}
+             
         return {"value": val}
 
 class ImageQualityMetric(Node):
